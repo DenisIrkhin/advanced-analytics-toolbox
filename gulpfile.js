@@ -140,8 +140,9 @@ gulp.task('release', function() {
     './build/dev/lib/js/ui/element/*',
     './build/dev/lib/js/util/*',
     './build/dev/lib/vendor/*',
+    './build/dev/lib/vendor/*/*',
   ], {base: './build/dev'})
-  .pipe(zip( config.name + '-' + config.version + '.zip'))
+  .pipe(zip( config.main + '-' + config.version + '.zip'))
   .pipe(gulp.dest('./build/release/'))
 });
 

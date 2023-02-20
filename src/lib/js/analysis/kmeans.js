@@ -24,6 +24,7 @@ define([
       const dimension = utils.validateDimension(layout.props.dimensions[0]);
       const dimensions = [
         {
+          qNullSuppression: true,
           qDef: {
             qFieldDefs: [dimension],
             // qSortCriterias: layout.qHyperCubeDef.qDimensions[0].qDef.qSortCriterias
@@ -50,6 +51,16 @@ define([
 
       const measure1 = utils.validateMeasure(layout.props.measures[0]);
       const measure2 = utils.validateMeasure(layout.props.measures[1]);
+
+      // Debug mode - set R dataset name to store the q data.
+      utils.displayDebugModeMessage(layout.props.debugMode);
+      const saveRDataset = utils.getDebugSaveDatasetScript(layout.props.debugMode, 'debug_kmeans.rda');
+
+      const defMea1 = `R.ScriptEval('${saveRDataset} set.seed(1);kmeans(${data},${numberOfClusters})$cluster', ${params})`;
+
+      // Debug mode - display R Scripts to console
+      utils.displayRScriptsToConsole(layout.props.debugMode, [defMea1]);
+
       const measures = [
         {
           qDef: {
@@ -65,7 +76,7 @@ define([
         },
         {
           qDef: {
-            qDef: `R.ScriptEval('set.seed(1);kmeans(${data},${numberOfClusters})$cluster', ${params})`,
+            qDef: defMea1,
           },
         },
         {
@@ -109,21 +120,16 @@ define([
       const defer = $q.defer();
       const layout = $scope.layout;
 
-      const dimension = utils.validateDimension(layout.props.dimensions[0]);
-      const requestPage = [{
-        qTop: 0,
-        qLeft: 0,
-        qWidth: 6,
-        qHeight: 1500,
-      }];
-
-      $scope.backendApi.getData(requestPage).then((dataPages) => {
+      utils.pageExtensionData($scope, (dataPages) => {
         const measureInfo = $scope.layout.qHyperCube.qMeasureInfo;
 
         // Display error when all measures' grand total return NaN.
         if (isNaN(measureInfo[2].qMin) && isNaN(measureInfo[2].qMax)) {
           utils.displayConnectionError($scope.extId);
         } else {
+          // Debug mode - display returned dataset to console
+          utils.displayReturnedDatasetToConsole(layout.props.debugMode, dataPages);
+
           const palette = utils.getOneHundredColors();
 
           // Create containers for storing bubble data
@@ -136,7 +142,7 @@ define([
             bubbleData[i].y = [];
           }
 
-          $.each(dataPages[0].qMatrix, (key, value) => {
+          $.each(dataPages, (key, value) => {
             bubbleData[value[3].qNum].elemNum.push(value[0].qElemNumber);
             bubbleData[value[3].qNum].text.push(value[0].qText);
             bubbleData[value[3].qNum].x.push(value[1].qNum);
@@ -154,7 +160,7 @@ define([
               mode: 'markers',
               type: 'scatter',
               marker: {
-                color: `rgba(${palette[i - 1]},0.7)`,
+                // color: `rgba(${palette[i - 1]},0.7)`,
                 size: layout.props.bubbleSize,
               },
             });

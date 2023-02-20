@@ -18,10 +18,18 @@ define([
       // Display loader
       // utils.displayLoader($scope.extId);
 
-      const dimension = utils.validateDimension(layout.props.dimensions[0]);
-
       // Set definitions for dimensions and measures
-      const dimensions = [{ qDef: { qFieldDefs: [dimension] } }];
+      const dimension = utils.validateDimension(layout.props.dimensions[0]);
+      const dimensions = [{
+        qNullSuppression: true,
+        qDef: {
+          qFieldDefs: [dimension],
+          qSortCriterias: [{
+            qSortByNumeric: 1,
+          }],
+        },
+      }];
+
       const measure = utils.validateMeasure(layout.props.measures[0]);
 
       // Set  first and seasonal differences to observed value
@@ -55,6 +63,17 @@ define([
         }
       });
 
+      // Debug mode - set R dataset name to store the q data.
+      utils.displayDebugModeMessage(layout.props.debugMode);
+      const saveRDataset = utils.getDebugSaveDatasetScript(layout.props.debugMode, 'debug_autocorrelation.rda');
+
+      const defMea1 = `R.ScriptEval('${saveRDataset} ${expressions.acf}', ${measure} as Measure)`;
+      const defMea2 = `R.ScriptEval('${expressions.pacf}', ${measure} as Measure)`;
+      const defMea3 = `R.ScriptEval('high<-qnorm((1 + 0.95)/2)/sqrt(length(q$Measure));low<-qnorm((1 - 0.95)/2)/sqrt(length(q$Measure));c(high, low)', ${measure} as Measure)`;
+
+      // Debug mode - display R Scripts to console
+      utils.displayRScriptsToConsole(layout.props.debugMode, [defMea1, defMea2, defMea3]);
+
       const measures = [
         {
           qDef: {
@@ -63,17 +82,17 @@ define([
         },
         {
           qDef: {
-            qDef: `R.ScriptEval('${expressions.acf}', ${measure} as Measure)`,
+            qDef: defMea1,
           },
         },
         {
           qDef: {
-            qDef: `R.ScriptEval('${expressions.pacf}', ${measure} as Measure)`,
+            qDef: defMea2,
           },
         },
         {
           qDef: {
-            qDef: `R.ScriptEval('high<-qnorm((1 + 0.95)/2)/sqrt(length(q$Measure));low<-qnorm((1 - 0.95)/2)/sqrt(length(q$Measure));c(high, low)', ${measure} as Measure)`,
+            qDef: defMea3,
           },
         },
         {
@@ -130,6 +149,9 @@ define([
         ) {
           utils.displayConnectionError($scope.extId);
         } else {
+          // Debug mode - display returned dataset to console
+          utils.displayReturnedDatasetToConsole(layout.props.debugMode, dataPages[0]);
+
           const palette = utils.getDefaultPaletteColor();
 
           const high = dataPages[0].qMatrix[0][4].qNum;
@@ -166,9 +188,9 @@ define([
             name: 'Observed',
             mode: 'lines+markers',
             fill: layout.props.line,
-            fillcolor: (layout.props.colors) ? `rgba(${palette[3]},0.3)` : `rgba(${palette[layout.props.colorForMain]},0.3)`,
+            fillcolor: (layout.props.colors) ? `rgba(${palette[3]},0.3)` : `rgba(${utils.getConversionRgba(layout.props.colorForMain.color, 1)})`,
             marker: {
-              color: (layout.props.colors) ? `rgba(${palette[3]},1)` : `rgba(${palette[layout.props.colorForMain]},1)`,
+              color: (layout.props.colors) ? `rgba(${palette[3]},1)` : `rgba(${utils.getConversionRgba(layout.props.colorForMain.color, 1)})`,
               size: (layout.props.datapoints) ? layout.props.pointRadius : 1,
             },
             line: {
@@ -208,7 +230,7 @@ define([
                 y: b_mea1,
                 name: (i === 2) ? 'Autocorrelation' : 'Partial Autocorrelation',
                 marker: {
-                  color: `rgba(${palette[layout.props.colorForMain]},1)`,
+                  color: (layout.props.colors) ? `rgba(${palette[3]}, 1)` : `rgba(${utils.getConversionRgba(layout.props.colorForMain.color, 1)})`,
                 },
                 type: 'bar',
                 width: 0.3,
@@ -223,7 +245,7 @@ define([
                 name: 'Upper',
                 type: 'scatter',
                 line: {
-                  color: `rgba(${palette[layout.props.colorForSub]},1)`,
+                  color: (layout.props.colors) ? `rgba(${palette[7]}, 1)` : `rgba(${utils.getConversionRgba(layout.props.colorForSub.color, 1)})`,
                   dash: 'dash',
                 },
                 marker: {
@@ -240,7 +262,7 @@ define([
                 name: 'Lower',
                 type: 'scatter',
                 line: {
-                  color: `rgba(${palette[layout.props.colorForSub]},1)`,
+                  color: (layout.props.colors) ? `rgba(${palette[7]}, 1)` : `rgba(${utils.getConversionRgba(layout.props.colorForSub.color, 1)})`,
                   dash: 'dash',
                 },
                 marker: {

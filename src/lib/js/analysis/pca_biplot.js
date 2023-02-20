@@ -18,10 +18,14 @@ define([
       // Display loader
       // utils.displayLoader($scope.extId);
 
-      const dimension = utils.validateDimension(layout.props.dimensions[0]);
-
       // Set definitions for dimensions and measures
-      const dimensions = [{ qDef: { qFieldDefs: [dimension] } }];
+      const dimension = utils.validateDimension(layout.props.dimensions[0]);
+      const dimensions = [{
+        qNullSuppression: true,
+        qDef: {
+          qFieldDefs: [dimension]
+        },
+      }];
 
       const meaLen = layout.props.measures.length;
       $scope.rowsLabel = [utils.validateMeasure(layout.props.measures[0])]; // Label for dimension values
@@ -41,10 +45,19 @@ define([
         }
       }
 
+      // Debug mode - set R dataset name to store the q data.
+      utils.displayDebugModeMessage(layout.props.debugMode);
+      const saveRDataset = utils.getDebugSaveDatasetScript(layout.props.debugMode, 'debug_pca_biplot.rda');
+
+      const defMea1 = `R.ScriptEvalExStr('${dataType}','${saveRDataset} library(jsonlite); pca_result<-prcomp(data.frame(${meaList}), scale = TRUE); json<-toJSON(list(summary(pca_result)$x, summary(pca_result)$rotation)); json;',${params})`;
+
+      // Debug mode - display R Scripts to console
+      utils.displayRScriptsToConsole(layout.props.debugMode, [defMea1]);
+
       const measures = [
         {
           qDef: {
-            qDef: `R.ScriptEvalExStr('${dataType}','library(jsonlite); pca_result<-prcomp(data.frame(${meaList}), scale = TRUE); json<-toJSON(list(summary(pca_result)$x, summary(pca_result)$rotation)); json;',${params})`,
+            qDef: defMea1,
           },
         },
         {
@@ -115,6 +128,9 @@ define([
         if (dataPages[0].qMatrix[0][1].qText.length === 0 || dataPages[0].qMatrix[0][1].qText == '-') {
           utils.displayConnectionError($scope.extId);
         } else {
+          // Debug mode - display returned dataset to console
+          utils.displayReturnedDatasetToConsole(layout.props.debugMode, dataPages[0]);
+
           const palette = utils.getDefaultPaletteColor();
 
           // Get dimension
@@ -159,7 +175,7 @@ define([
               mode: 'markers',
               type: 'scatter',
               marker: {
-                color: (layout.props.colors) ? `rgba(${palette[3]},0.8)` : `rgba(${palette[layout.props.colorForMain]},0.8)`,
+                color: (layout.props.colors) ? `rgba(${palette[3]},0.8)` : `rgba(${utils.getConversionRgba(layout.props.colorForMain.color, 0.8)})`,
                 size: layout.props.bubbleSize,
               },
             },
@@ -214,7 +230,12 @@ define([
               side: 'right',
               range: [(maxValMea2) * -1 * 1.1, maxValMea2 * 1.1],
             },
-            margin: { r: 50, l: 50, t: 50, b: 50 },
+            margin: {
+              r: ($scope.layout.props.yAxisPosition == 'right') ? $scope.layout.props.marginRight + 70 : $scope.layout.props.marginRight,
+              l: ($scope.layout.props.yAxisPosition == 'left') ? $scope.layout.props.marginLeft + 70 : $scope.layout.props.marginLeft,
+              t: ($scope.layout.props.xAxisPosition == 'top') ? $scope.layout.props.marginTop + 70 : $scope.layout.props.marginTop,
+              b: ($scope.layout.props.xAxisPosition == 'bottom') ? $scope.layout.props.marginBottom + 70 : $scope.layout.props.marginBottom,
+            },
             annotations: [
             ],
           }
@@ -231,7 +252,7 @@ define([
                 axref: 'x',
                 ayref: 'y',
                 showarrow: true,
-                arrowcolor: `rgba(${palette[layout.props.colorForSub]},1)`,
+                arrowcolor: (layout.props.colors) ? `rgba(${palette[7]}, 1)` : `rgba(${utils.getConversionRgba(layout.props.colorForSub.color, 1)})`,
                 arrowhead: 3,
               },
               {
@@ -239,7 +260,7 @@ define([
                 y: arrowY[i],
                 text: $scope.rowsLabel[i],
                 font: {
-                  color: `rgba(${palette[layout.props.colorForSub]},1)`,
+                  color: (layout.props.colors) ? `rgba(${palette[7]}, 1)` : `rgba(${utils.getConversionRgba(layout.props.colorForSub.color, 1)})`,
                 },
                 showarrow: false,
               }

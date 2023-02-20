@@ -22,6 +22,7 @@ define([
 
       const dimensions = [
         {
+          qNullSuppression: true,
           qDef: {
             qFieldDefs: [dimension],
             qSortCriterias: [{
@@ -52,6 +53,17 @@ define([
         }
       }
 
+      // Debug mode - set R dataset name to store the q data.
+      utils.displayDebugModeMessage(layout.props.debugMode);
+      const saveRDataset = utils.getDebugSaveDatasetScript(layout.props.debugMode, 'debug_regression_analysis_line_chart.rda');
+
+      const defMea1 = `R.ScriptEval('${saveRDataset} lm_result <- lm(${meaList});predict(lm_result, interval="${layout.props.interval}", level=${layout.props.confidenceLevel})[,1]',${params})`;
+      const defMea2 = `R.ScriptEval('lm_result <- lm(${meaList});predict(lm_result, interval="${layout.props.interval}", level=${layout.props.confidenceLevel})[,2]',${params})`;
+      const defMea3 = `R.ScriptEval('lm_result <- lm(${meaList});predict(lm_result, interval="${layout.props.interval}", level=${layout.props.confidenceLevel})[,3]',${params})`
+
+      // Debug mode - display R Scripts to console
+      utils.displayRScriptsToConsole(layout.props.debugMode, [defMea1, defMea2, defMea3]);
+
       const measure = utils.validateMeasure(layout.props.measures[0]);
       const measures = [
         {
@@ -61,17 +73,17 @@ define([
         },
         {
           qDef: {
-            qDef: `R.ScriptEval('lm_result <- lm(${meaList});predict(lm_result, interval="${layout.props.interval}", level=${layout.props.confidenceLevel})[,1]',${params})`,
+            qDef: defMea1,
           },
         },
         {
           qDef: {
-            qDef: `R.ScriptEval('lm_result <- lm(${meaList});predict(lm_result, interval="${layout.props.interval}", level=${layout.props.confidenceLevel})[,2]',${params})`,
+            qDef: defMea2,
           },
         },
         {
           qDef: {
-            qDef: `R.ScriptEval('lm_result <- lm(${meaList});predict(lm_result, interval="${layout.props.interval}", level=${layout.props.confidenceLevel})[,3]',${params})`,
+            qDef: defMea3,
           },
         },
         {
@@ -127,6 +139,9 @@ define([
         ) {
           utils.displayConnectionError($scope.extId);
         } else {
+          // Debug mode - display returned dataset to console
+          utils.displayReturnedDatasetToConsole(layout.props.debugMode, dataPages[0]);
+
           const palette = utils.getDefaultPaletteColor();
 
           const elemNum = [];
@@ -153,9 +168,9 @@ define([
               name: 'Observed',
               mode: 'lines+markers',
               fill:  layout.props.line,
-              fillcolor: (layout.props.colors) ? `rgba(${palette[3]},0.3)` : `rgba(${palette[layout.props.colorForMain]},0.3)`,
+              fillcolor: (layout.props.colors) ? `rgba(${palette[3]},0.3)` : `rgba(${utils.getConversionRgba(layout.props.colorForMain.color, 0.3)})`,
               marker: {
-                color: (layout.props.colors) ? `rgba(${palette[3]},1)` : `rgba(${palette[layout.props.colorForMain]},1)`,
+                color: (layout.props.colors) ? `rgba(${palette[3]},1)` : `rgba(${utils.getConversionRgba(layout.props.colorForMain.color, 1)})`,
                 size: (layout.props.datapoints) ? layout.props.pointRadius : 1,
               },
               line: {
@@ -167,7 +182,7 @@ define([
               y: mea2,
               name: 'Fit',
               line: {
-                color: `rgba(${palette[layout.props.colorForSub]},1)`,
+                color: (layout.props.colors) ? `rgba(${palette[7]}, 1)` : `rgba(${utils.getConversionRgba(layout.props.colorForSub.color, 1)})`,
               },
             },
             {
@@ -175,7 +190,7 @@ define([
               y: mea3,
               name: 'Lower',
               fill: 'tonexty',
-              fillcolor: `rgba(${palette[layout.props.colorForSub]},0.3)`,
+              fillcolor: (layout.props.colors) ? `rgba(${palette[7]},0.3)` : `rgba(${utils.getConversionRgba(layout.props.colorForSub.color, 0.3)})`,
               type: 'scatter',
               mode: 'none',
             },
@@ -184,7 +199,7 @@ define([
               y: mea4,
               name: 'Upper',
               fill: 'tonexty',
-              fillcolor: `rgba(${palette[layout.props.colorForSub]},0.3)`,
+              fillcolor: (layout.props.colors) ? `rgba(${palette[7]},0.3)` : `rgba(${utils.getConversionRgba(layout.props.colorForSub.color, 0.3)})`,
               type: 'scatter',
               mode: 'none',
             },

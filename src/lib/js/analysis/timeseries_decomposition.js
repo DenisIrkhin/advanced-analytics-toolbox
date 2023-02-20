@@ -18,11 +18,31 @@ define([
       // Display loader
       // utils.displayLoader($scope.extId);
 
-      const dimension = utils.validateDimension(layout.props.dimensions[0]);
-
       // Set definitions for dimensions and measures
-      const dimensions = [{ qDef: { qFieldDefs: [dimension] } }];
+      const dimension = utils.validateDimension(layout.props.dimensions[0]);
+      const dimensions = [{
+        qNullSuppression: true,
+        qDef: {
+          qFieldDefs: [dimension],
+          qSortCriterias: [{
+            qSortByNumeric: 1,
+          }],
+        },
+      }];
+
       const measure = utils.validateMeasure(layout.props.measures[0]);
+
+      // Debug mode - set R dataset name to store the q data.
+      utils.displayDebugModeMessage(layout.props.debugMode);
+      const saveRDataset = utils.getDebugSaveDatasetScript(layout.props.debugMode, 'debug_timeseries_decomposition.rda');
+
+      const defMea1 = `R.ScriptEval('${saveRDataset} library(dplyr);data<-ts(q$Measure,frequency=${layout.props.frequency});(decompose(data, type="${layout.props.seasonal}")$trend);', ${measure} as Measure)`;
+      const defMea2 = `R.ScriptEval('library(dplyr);data<-ts(q$Measure,frequency=${layout.props.frequency});(decompose(data, type="${layout.props.seasonal}")$seasonal);', ${measure} as Measure)`;
+      const defMea3 = `R.ScriptEval('library(dplyr);data<-ts(q$Measure,frequency=${layout.props.frequency});(decompose(data, type="${layout.props.seasonal}")$random);', ${measure} as Measure)`
+
+      // Debug mode - display R Scripts to console
+      utils.displayRScriptsToConsole(layout.props.debugMode, [defMea1, defMea2, defMea3]);
+
       const measures = [
         {
           qDef: {
@@ -31,17 +51,17 @@ define([
         },
         {
           qDef: {
-            qDef: `R.ScriptEval('library(dplyr);data<-ts(q$Measure,frequency=${layout.props.frequency});(decompose(data)$trend);', ${measure} as Measure)`,
+            qDef: defMea1,
           },
         },
         {
           qDef: {
-            qDef: `R.ScriptEval('library(dplyr);data<-ts(q$Measure,frequency=${layout.props.frequency});(decompose(data)$seasonal);', ${measure} as Measure)`,
+            qDef: defMea2,
           },
         },
         {
           qDef: {
-            qDef: `R.ScriptEval('library(dplyr);data<-ts(q$Measure,frequency=${layout.props.frequency});(decompose(data)$random);', ${measure} as Measure)`,
+            qDef: defMea3,
           },
         },
         {
@@ -98,6 +118,9 @@ define([
         ) {
           utils.displayConnectionError($scope.extId);
         } else {
+          // Debug mode - display returned dataset to console
+          utils.displayReturnedDatasetToConsole(layout.props.debugMode, dataPages[0]);
+
           let elemNum;
           let dim;
           let mea;
@@ -121,9 +144,9 @@ define([
               name: (i === 1) ? 'Observed' : (i === 2) ? 'Trend' : (i === 3) ? 'Seasonal' : (i === 4) ? 'Random' : '',
               mode: 'lines+markers',
               fill: layout.props.line,
-              fillcolor: (layout.props.colors) ? `rgba(${palette[3]},0.3)` : `rgba(${palette[layout.props.colorForMain]},0.3)`,
+              fillcolor: (layout.props.colors) ? `rgba(${palette[3]},0.3)` : `rgba(${utils.getConversionRgba(layout.props.colorForMain.color, 1)})`,
               marker: {
-                color: (layout.props.colors) ? `rgba(${palette[3]},1)` : `rgba(${palette[layout.props.colorForMain]},1)`,
+                color: (layout.props.colors) ? `rgba(${palette[3]},1)` : `rgba(${utils.getConversionRgba(layout.props.colorForMain.color, 1)})`,
                 size: (layout.props.datapoints) ? layout.props.pointRadius : 1,
               },
               line: {
@@ -185,7 +208,12 @@ define([
                 ticksuffix: utils.getSuffix($scope, 0),
               },
               dragmode: 'select',
-              margin: { r: 10, t: 0 },
+              margin: {
+                r: ($scope.layout.props.yAxisPosition == 'right') ? $scope.layout.props.marginRight + 70 : $scope.layout.props.marginRight,
+                l: ($scope.layout.props.yAxisPosition == 'left') ? $scope.layout.props.marginLeft + 70 : $scope.layout.props.marginLeft,
+                t: ($scope.layout.props.xAxisPosition == 'top') ? $scope.layout.props.marginTop + 70 : $scope.layout.props.marginTop,
+                b: ($scope.layout.props.xAxisPosition == 'bottom') ? $scope.layout.props.marginBottom + 70 : $scope.layout.props.marginBottom,
+              },
             }
             chart = lineChart.draw($scope, chartData, `aat-chart-${$scope.extId}`, customOptions);
           } else {

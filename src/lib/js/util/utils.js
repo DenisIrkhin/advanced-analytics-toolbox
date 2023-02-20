@@ -1,7 +1,125 @@
 define([
   '../../vendor/d3-format.min',
-], (d3) => {
+], (d3, $q) => {
   return {
+
+
+    /**
+     * displayDebugModeMessage - display Debug mode message
+     *
+     * @param  {Boolean} debugMode    debug mode flag
+     * @return {type}           description
+     */
+    displayDebugModeMessage(debugMode) {
+      if (debugMode) {
+        console.log('** Debug mode is ON **');
+      }
+    },
+
+    /**
+     * getDebugSaveDatasetScript - Return R script to store dataset
+     *
+     * @param  {Boolean} debugMode    debug mode flag
+     * @param  {String} RDatasetName R dataset name
+     * @return {String}              R script to store into R dataset
+     */
+    getDebugSaveDatasetScript(debugMode, RDatasetName) {
+      let saveRDataset = '';
+      if (debugMode) {
+        console.log(`** Records passed to R is to be saved into ${RDatasetName}. `);
+        saveRDataset = `save(q,file="~/${RDatasetName}");`;
+      } else {
+      }
+      return saveRDataset;
+    },
+
+
+    /**
+     * displayRScriptsToConsole - Display R Scripts to console
+     *
+     * @param  {Boolean} debugMode    debug mode flag
+     * @param  {Array} scripts   R scripts contained in measures
+     */
+    displayRScriptsToConsole(debugMode, scripts) {
+      if (debugMode) {
+        console.log('** R Scripts for measures:');
+        for(let i = 0; i < scripts.length; i++) {
+          console.log(scripts[i]);
+        }
+      }
+    },
+
+
+    /**
+     * displayReturnedDatasetToConsole - display returned dataset to console
+     *
+     * @param  {Boolean} debugMode    debug mode flag
+     * @param  {Object} dataset   dataset returned from engine
+     */
+    displayReturnedDatasetToConsole(debugMode, dataset) {
+      if (debugMode) {
+        console.log('** Recieved data from engine:')
+        console.log(dataset);
+      }
+    },
+
+    /**
+     * pageExtensionData - Iterate through all datapages of hypercube
+     *
+     * @param  {Object} $scope   angular $scope
+     * @param  {Object} callback callback function
+     */
+    pageExtensionData($scope, callback) {
+      let lastrow = 0;
+      const colNums = $scope.layout.qHyperCube.qSize.qcx;
+
+      // initialProperty sets 1500 for dataFetch hight
+      const datapageSize = 1500;
+
+      $scope.backendApi.eachDataRow((rownum, row) => {
+        lastrow = rownum;
+      });
+      if ($scope.backendApi.getRowCount() > lastrow + 1) {
+        const requestPage = [{
+          qTop: lastrow + 1,
+          qLeft: 0,
+          qWidth: colNums,
+          qHeight: Math.min(datapageSize, $scope.backendApi.getRowCount() - lastrow),
+        }];
+        $scope.backendApi.getData(requestPage).then(() => {
+          this.pageExtensionData($scope, callback);
+        });
+      } else {
+        let dataset = [];
+        $.each($scope.layout.qHyperCube.qDataPages, (key, value) => {
+          dataset = dataset.concat(value.qMatrix);
+        });
+        callback(dataset);
+      }
+    },
+
+    /**
+     * splitDataset - Create R Script to split input data into training and test datasets
+     *
+     * @param  {Object} layout Layout
+     * @param  {Number} meaLen Length of measures
+     * @return {String}        R script to split datasets
+     */
+    splitData(splitDatasetFlag, splitPercentage, meaLen) {
+      let splitData = 'training_data<-q;';
+      if (splitDatasetFlag) {
+        let training = `splitPercentage<-min(max(0.01, ${splitPercentage}), 0.99); data_end<-length(q$mea0); data_mid<-floor(data_end * splitPercentage); training_data<-list(mea0=q$mea0[1:data_mid]`;
+        let test = 'test_data<-list(mea0=q$mea0[(data_mid + 1):data_end]';
+        for (let i = 1; i < meaLen; i++) {
+          training += `,mea${i}=q$mea${i}[1:data_mid]`;
+          test += `,mea${i}=q$mea${i}[(data_mid + 1):data_end]`;
+        }
+        training += ');';
+        test += ');';
+        splitData = training + test;
+      }
+      return splitData;
+    },
 
     /**
      * displayLoader - Display loader circle
@@ -58,6 +176,22 @@ define([
         '187,171,228', '227,63,146', '208,96,125', '117,159,121', '157,107,94', '133,116,174', '126,48,76', '173,143,172', '75,119,222', '100,126,23', '185,195,121', '141,168,176', '185,114,217', '120,98,121',
         '126,192,125', '145,100,54', '45,39,79', '220,230,128', '117,151,72', '218,230,90', '69,156,73', '183,147,74', '81,198,113', '158,173,63', '150,154,92', '185,151,106', '70,83,26', '192,240,132',
         '118,193,70', '186,208,173'];
+    },
+    /**
+     * getConversionRgba - Return Hex web color
+     *
+     * @return {String} rgba code
+     */
+    getConversionRgba(color_code, alpha = 1) {
+        var rgba_code = [];
+
+        rgba_code['red']   = parseInt(color_code.substring(1,3), 16);
+        rgba_code['green'] = parseInt(color_code.substring(3,5), 16);
+        rgba_code['blue']  = parseInt(color_code.substring(5,7), 16);
+        rgba_code['alpha'] = alpha;
+        rgba_code['full']  = Object.values(rgba_code).join(',');
+
+        return rgba_code['full'];
     },
     /**
      * setLocaleInfo - Set locale infomation to angular $scope

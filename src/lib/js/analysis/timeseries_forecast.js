@@ -23,7 +23,15 @@ define([
       const dimension = utils.validateDimension(layout.props.dimensions[0]);
 
       // Set definitions for dimensions and measures
-      const dimensions = [{ qDef: { qFieldDefs: [dimension] } }];
+      const dimensions = [{
+        qNullSuppression: true,
+        qDef: {
+          qFieldDefs: [dimension],
+          qSortCriterias: [{
+            qSortByNumeric: 1,
+          }],
+        },
+      }];
       const measure = utils.validateMeasure(layout.props.measures[0]);
 
       let expression = '';
@@ -39,6 +47,17 @@ define([
         frequency = `,frequency=${layout.props.frequency}`;
       }
 
+      // Debug mode - set R dataset name to store the q data.
+      utils.displayDebugModeMessage(layout.props.debugMode);
+      const saveRDataset = utils.getDebugSaveDatasetScript(layout.props.debugMode, 'debug_timeseries_forecast.rda');
+
+      const defMea1 = `R.ScriptEvalExStr('N', '${saveRDataset} library(jsonlite);library(dplyr);library(forecast);data<-ts(na.omit(q$Measure) ${frequency});${expression}
+      res<-forecast(fit, level=${layout.props.confidenceLevel}, h=${layout.props.forecastingPeriods});
+      json<-toJSON(list(as.double(res$mean),as.double(res$upper),as.double(res$lower),arimaorder(fit))); json;', ${measure} as Measure)`;
+
+      // Debug mode - display R Scripts to console
+      utils.displayRScriptsToConsole(layout.props.debugMode, [defMea1]);
+
       const measures = [
         {
           qDef: {
@@ -47,9 +66,7 @@ define([
         },
         {
           qDef: {
-            qDef: `R.ScriptEvalExStr('N', 'library(jsonlite);library(dplyr);library(forecast);data<-ts(na.omit(q$Measure) ${frequency});${expression}
-            res<-forecast(fit, level=${layout.props.confidenceLevel}, h=${layout.props.forecastingPeriods});
-            json<-toJSON(list(as.double(res$mean),as.double(res$upper),as.double(res$lower),arimaorder(fit))); json;', ${measure} as Measure)`,
+            qDef: defMea1,
           },
         },
         {
@@ -109,20 +126,37 @@ define([
       }];
 
       $scope.backendApi.getData(requestPage).then((dataPages) => {
-        if (dataPages[0].qMatrix[0][1].qText.length === 0 || dataPages[0].qMatrix[0][1].qText == '-') {
+        let result = null;
+        const qMatrix = dataPages[0].qMatrix;
+
+        // Check the result returned from R
+        if (qMatrix[0][2].qText.length === 0 || qMatrix[0][2].qText == '-') {
+          for (let i = 0; i < qMatrix.length; i++) {
+            if (qMatrix[i][2].qText.length !== 0 && qMatrix[i][2].qText !== '-') {
+              result = JSON.parse(qMatrix[i][2].qText);
+            }
+          }
+        } else {
+          result = JSON.parse(qMatrix[0][2].qText);
+        }
+
+        if (result == null) {
           utils.displayConnectionError($scope.extId);
         } else {
+          // Debug mode - display returned dataset to console
+          utils.displayReturnedDatasetToConsole(layout.props.debugMode, dataPages[0]);
+
           const palette = utils.getDefaultPaletteColor();
 
-          const result = JSON.parse(dataPages[0].qMatrix[0][2].qText);
           const mean = result[0];
           const upper = result[1];
           const lower = result[2];
           const arimaorder = result[3];
+          // const for reference line
+          const mylimit = layout.props.limit;
 
           // Chart mode
           if (typeof $scope.layout.props.displayTable == 'undefined' || $scope.layout.props.displayTable == false) {
-
             const datasets = {};
 
             // Store actual values to datasets
@@ -144,16 +178,19 @@ define([
             const mea2 = new Array(dataLength); // Forecast (mean)
             const mea3 = new Array(dataLength); // Forecast (upper)
             const mea4 = new Array(dataLength); // Forecast (lower)
+            const mea5 = new Array(dataLength); // Forecast - Reference Line
 
             for (let i = 0; i < layout.props.forecastingPeriods; i++) {
               datasets.dim1.push(`+${i + 1}`); // Forecast period is displayed as +1, +2, +3...
               mea2.push(mean[i]);
               mea3.push(upper[i]);
               mea4.push(lower[i]);
+              mea5.push(mylimit);
             }
             datasets.mea2 = mea2;
             datasets.mea3 = mea3;
             datasets.mea4 = mea4;
+            datasets.mea5 = mea5;
 
             // Calculate ARIMA order
             let arima = '';
@@ -174,10 +211,10 @@ define([
                 elemNum: datasets.elemNum,
                 name: 'Observed',
                 mode: 'lines+markers',
-                fill:  layout.props.line,
-                fillcolor: (layout.props.colors) ? `rgba(${palette[3]},0.3)` : `rgba(${palette[layout.props.colorForMain]},0.3)`,
+                fill: layout.props.line,
+                fillcolor: (layout.props.colors) ? `rgba(${palette[3]},0.3)` : `rgba(${utils.getConversionRgba(layout.props.colorForMain.color, 1)})`,
                 marker: {
-                  color: (layout.props.colors) ? `rgba(${palette[3]},1)` : `rgba(${palette[layout.props.colorForMain]},1)`,
+                  color: (layout.props.colors) ? `rgba(${palette[3]},1)` : `rgba(${utils.getConversionRgba(layout.props.colorForMain.color, 1)})`,
                   size: (layout.props.datapoints) ? layout.props.pointRadius : 1,
                 },
                 line: {
@@ -190,7 +227,7 @@ define([
                 name: 'Fit',
                 mode: 'lines+markers',
                 marker: {
-                  color: (layout.props.colors) ? `rgba(${palette[7]},1)` : `rgba(${palette[layout.props.colorForSub]},1)`,
+                  color: (layout.props.colors) ? `rgba(${palette[7]},1)` : `rgba(${utils.getConversionRgba(layout.props.colorForSub.color, 1)})`,
                   size: (layout.props.datapoints) ? layout.props.pointRadius : 1,
                 },
                 line: {
@@ -203,7 +240,7 @@ define([
                 y: datasets.mea3,
                 name: 'Upper',
                 fill: 'tonexty',
-                fillcolor: `rgba(${palette[layout.props.colorForSub]},0.3)`,
+                fillcolor: (layout.props.colors) ? `rgba(${palette[7]},0.3)` : `rgba(${utils.getConversionRgba(layout.props.colorForSub.color, 0.3)})`,
                 type: 'scatter',
                 mode: 'none',
               },
@@ -212,10 +249,25 @@ define([
                 y: datasets.mea4,
                 name: 'Lower',
                 fill: 'tonexty',
-                fillcolor: `rgba(${palette[layout.props.colorForSub]},0.3)`,
+                fillcolor: (layout.props.colors) ? `rgba(${palette[7]},0.3)` : `rgba(${utils.getConversionRgba(layout.props.colorForSub.color, 0.3)})`,
                 type: 'scatter',
                 mode: 'none',
               },
+            //Reference line
+            {
+              x: datasets.dim1,
+              y: datasets.mea5,
+              name: layout.props.limitlabel,
+              mode: 'lines',
+              marker: {
+                color: `rgba(${utils.getConversionRgba(layout.props.limitcolor.color, 1)})`,
+                size: (layout.props.datapoints) ? layout.props.pointRadius : 1,
+              },
+              line: {
+                dash: layout.props.limitstyle,
+                width: layout.props.limitwidth,
+               },
+           },
             ];
 
             const customOptions = {
