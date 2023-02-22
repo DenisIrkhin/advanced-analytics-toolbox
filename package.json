@@ -29,7 +29,7 @@
     "gulp-uglify": "^1.5.4",
     "gulp-zip": "^3.2.0",
     "istanbul": "^0.4.5",
-    "mocha": "^3.4.2",
+    "mocha": "^10.2.0",
     "require": "^2.4.20",
     "rimraf": "^2.5.4",
     "should": "^11.2.1"
